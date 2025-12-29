@@ -1,0 +1,15 @@
+[project]
+name = "fastapi-prac"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.127.1",
+    "huggingface-hub>=1.2.3",
+    "jinja2>=3.1.6",
+    "llama-cpp-python>=0.3.16",
+    "python-multipart>=0.0.21",
+    "sqlmodel>=0.0.31",
+    "uvicorn>=0.40.0",
+]

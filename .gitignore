@@ -1,0 +1,20 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# AI Models (数GBあるためGitHubには上げないのが一般的)
+models/
+*.gguf
+
+# SQLite Database (個人の会話履歴が含まれるため)
+*.db
+
+# Environment variables
+.env
