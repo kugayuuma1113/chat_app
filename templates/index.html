@@ -30,14 +30,32 @@
             <h1 class="flex-1 text-xl font-bold px-4">🍀 AIカウンセリングルーム</h1>
         </header>
 
+        <!-- 
+            【重要】チャット履歴を表示するエリア
+            HTMXがサーバーから返されたHTMLをここに挿入します
+            id="chat-history" が hx-target で指定されているため、ここに表示されます
+        -->
         <div id="chat-history" class="flex-1 overflow-y-auto space-y-4 mb-8">
         </div>
 
+        <!-- 
+            ローディングインジケーター
+            HTMXがリクエスト中に自動的に表示します
+            hx-indicator="#loading" で指定されています
+        -->
         <div id="loading" class="htmx-indicator flex items-center gap-2 mb-4 text-gray-500 italic">
             <span class="loading loading-dots loading-sm"></span>
             AIが考え中...
         </div>
 
+        <!-- 
+            【重要】フォーム送信の設定
+            hx-post="/chat"        → /chat にPOSTリクエストを送信
+            hx-target="#chat-history" → サーバーからの返答を #chat-history に挿入（ここが答え！）
+            hx-swap="beforeend"    → ターゲット要素の最後に追加
+            hx-indicator="#loading" → リクエスト中に #loading を表示
+            hx-on::after-request="this.reset()" → 送信後にフォームをリセット
+        -->
         <form hx-post="/chat" hx-target="#chat-history" hx-swap="beforeend" hx-indicator="#loading"
             hx-on::after-request="this.reset()" class="flex gap-2 bg-base-100 p-4 rounded-box shadow-lg">
 

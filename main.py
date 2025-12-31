@@ -27,40 +27,83 @@ llm = Llama(model_path=MODEL_PATH, n_ctx=2048, verbose=False)
 def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-# 2. チャット送信時の処理 (HTMLを返すように変更！)
+# 2. チャット送信時の処理
 @app.post("/chat", response_class=HTMLResponse)
-def chat_endpoint(request: Request, prompt: str = Form(...)): # Form(...)でデータを受け取る
+def chat_endpoint(request: Request, prompt: str = Form(...)):
+    """
+    チャットメッセージを受け取り、AI応答を生成してHTMLを返す
+    
+    【重要】この関数が返すHTMLは、HTMXによって自動的に
+    index.html の #chat-history 要素に挿入されます
+    (hx-target="#chat-history" で指定されているため）
+    """
     with Session(engine) as session:
-        # --- 記憶の取得とAI生成（ロジックは前回と同じ） ---
-        statement = select(ChatMessage).order_by(desc(ChatMessage.id)).limit(10)
-        past_messages = session.exec(statement).all()
-        past_messages.reverse()
-
-        messages = [{"role": "system", "content": "あなたは親身な心理カウンセラーです。ユーザーの悩みに対して適切なアドバイスを簡潔に教えてください。"}]
-        for msg in past_messages:
-            messages.append({"role": msg.role, "content": msg.content})
+        # 過去10件のメッセージを取得（会話の文脈を保つため）
+        past_messages = _get_recent_messages(session, limit=10)
         
-        messages.append({"role": "user", "content": prompt})
-
-        response = llm.create_chat_completion(messages=messages, temperature=0.7)
-        ai_answer = response["choices"][0]["message"]["content"]
-
+        # LLMに送るプロンプトを構築
+        messages = _build_messages(past_messages, prompt)
+        
+        # AI応答を生成
+        ai_answer = _generate_ai_response(messages)
+        
         # データベースに保存
-        session.add(ChatMessage(role="user", content=prompt))
-        session.add(ChatMessage(role="assistant", content=ai_answer))
-        session.commit()
+        _save_messages(session, prompt, ai_answer)
+        
+        # HTMLを生成して返す（HTMXがこれを #chat-history に挿入する）
+        return HTMLResponse(content=_create_message_html(prompt, ai_answer))
 
-        # --- 【重要】ここが変わりました！ ---
-        # JSONではなく、追加表示したい「HTMLの部品」を直接返します
-        # --- Python側の返却HTMLをDaisyUI仕様に変更 ---
-        html_content = f"""
+def _get_recent_messages(session: Session, limit: int = 10) -> list[ChatMessage]:
+    """データベースから最新のメッセージを取得"""
+    statement = select(ChatMessage).order_by(desc(ChatMessage.id)).limit(limit)
+    messages = session.exec(statement).all()
+    messages.reverse()  # 古い順に並び替え
+    return messages
+
+def _build_messages(past_messages: list[ChatMessage], user_prompt: str) -> list[dict]:
+    """LLMに送るメッセージリストを構築"""
+    system_prompt = "あなたは親身な心理カウンセラーです。ユーザーの悩みに対して適切なアドバイスを早急かつ簡潔に教えてください。"
+    
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    # 過去のメッセージを追加
+    for msg in past_messages:
+        messages.append({"role": msg.role, "content": msg.content})
+    
+    # 現在のユーザー入力を追加
+    messages.append({"role": "user", "content": user_prompt})
+    
+    return messages
+
+
+def _generate_ai_response(messages: list[dict]) -> str:
+    """LLMを使ってAI応答を生成"""
+    response = llm.create_chat_completion(messages=messages, temperature=0.7)
+    return response["choices"][0]["message"]["content"]
+
+
+def _save_messages(session: Session, user_prompt: str, ai_answer: str) -> None:
+    """ユーザー入力とAI応答をデータベースに保存"""
+    session.add(ChatMessage(role="user", content=user_prompt))
+    session.add(ChatMessage(role="assistant", content=ai_answer))
+    session.commit()
+
+
+def _create_message_html(user_prompt: str, ai_answer: str) -> str:
+    """
+    ユーザーメッセージとAI応答をHTML形式で生成
+
+    【重要】このHTMLは、HTMXによって自動的に
+    index.html の #chat-history 要素の最後に追加されます
+    """
+    html_content = f"""
         <div class="chat chat-end">
             <div class="chat-header text-xs opacity-50 mb-1">あなた</div>
-            <div class="chat-bubble chat-bubble-info">{prompt}</div>
+            <div class="chat-bubble chat-bubble-info">{user_prompt}</div>
         </div>
         <div class="chat chat-start">
             <div class="chat-header text-xs opacity-50 mb-1">AI</div>
             <div class="chat-bubble chat-bubble-primary text-white">{ai_answer}</div>
         </div>
         """
-        return HTMLResponse(content=html_content)
+    return html_content
